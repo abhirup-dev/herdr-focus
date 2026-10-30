@@ -6,6 +6,7 @@ import fcntl
 import json
 import os
 import re
+import signal
 import struct
 import subprocess
 import sys
@@ -35,9 +36,7 @@ _idle.restype = ctypes.c_double
 
 def show(reason: str = "manual") -> None:
     t0 = time.time()
-    if pid_alive(STATE_DIR / "cover.pid"):
-        log(f"cover already open, skipped ({reason})")
-        return
+    close_cover()
     pane = call("session.snapshot", {})["snapshot"].get("focused_pane_id")
     if not pane:
         return
@@ -63,6 +62,21 @@ def show(reason: str = "manual") -> None:
         },
     )
     log(f"cover opened ({reason}) over {pane} in {time.time() - t0:.2f}s")
+
+
+def close_cover() -> None:
+    """Close a cover left open, e.g. on a tab you left with Herdr keys, which never reach it.
+    A new cover replaces it over the pane you are on now."""
+    pidfile = STATE_DIR / "cover.pid"
+    if not pid_alive(pidfile):
+        return
+    os.kill(int(pidfile.read_text()), signal.SIGTERM)
+    for _ in range(20):
+        if not pid_alive(pidfile):
+            break
+        time.sleep(0.05)
+    time.sleep(0.1)  # let Herdr close its pane before the snapshot
+    log("closed a cover left open")
 
 
 # --- is the user looking at this session? ------------------------------------
