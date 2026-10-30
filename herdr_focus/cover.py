@@ -47,14 +47,18 @@ def ui() -> None:
     cfg = config()
     effect = EFFECTS[cfg["effect"]]
     # Herdr opens the overlay at the displaced pane's size and resizes it to the
-    # tab (minus its frame) on its next redraw. Output first: a silent pane gets none.
+    # tab (minus its frame) on a later redraw. Output first: a silent pane gets none.
     want = (layout["area"]["width"] - 2, layout["area"]["height"] - 2)
     t0 = time.monotonic()
     sys.stdout.write("\x1b[?1049h\x1b[?25l\x1b[2J")
     sys.stdout.flush()
     deadline = t0 + cfg["resize_timeout_seconds"]
     while tuple(os.get_terminal_size()) != want and time.monotonic() < deadline:
-        time.sleep(0.02)
+        # Keep producing output: Herdr resizes the pane on a redraw, and right after a
+        # workspace or tab switch the first output can come before the pane is laid out.
+        sys.stdout.write("\x1b[2J")
+        sys.stdout.flush()
+        time.sleep(0.05)
     if cfg["debug"]:
         spawn = time.time() - float(os.environ.get("FOCUS_T0", "0")) - (time.monotonic() - t0)
         log(f"debug ui: spawned {spawn:.2f}s after show, sized in {time.monotonic() - t0:.2f}s")
