@@ -1,5 +1,5 @@
 """The cover: the overlay pane's process. Sizes itself, asks for the host colors, draws the chosen
-effect, and exits on the first key, click or scroll."""
+effect, redraws panes that change behind it, and exits on the first key, click or scroll."""
 
 import json
 import os
@@ -14,7 +14,7 @@ from pathlib import Path
 from .config import config
 from .effects import EFFECTS
 from .geometry import Frame, panes
-from .herdr import STATE_DIR, log
+from .herdr import STATE_DIR, call, log
 from .term import query_colors
 
 OSC_REPLY = re.compile(rb"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
@@ -23,6 +23,22 @@ OSC_REPLY = re.compile(rb"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 def should_dismiss(data: bytes) -> bool:
     """Any key, click or scroll dismisses; late replies to our color queries do not."""
     return bool(OSC_REPLY.sub(b"", data))
+
+
+def refresh(layout: dict) -> bool:
+    """Re-read the panes so agents working behind the cover show their progress. True if any changed.
+    The focused pane keeps its snapshot: under the overlay Herdr squeezes it, so a live read is narrow."""
+    changed = False
+    for p in layout["panes"]:
+        if p.get("focused"):
+            continue
+        try:
+            text = call("pane.read", {"pane_id": p["pane_id"], "source": "visible", "format": "ansi"})["read"]["text"]
+        except Exception:
+            continue  # pane closed or server busy: keep what we have
+        if text != p["text"]:
+            p["text"], changed = text, True
+    return changed
 
 
 def ui() -> None:
@@ -48,6 +64,7 @@ def ui() -> None:
     # Ask for mouse reports (clicks and wheel, SGR encoding) so they reach us instead of Herdr.
     sys.stdout.write("\x1b[?1000h\x1b[?1006h")
     drawn = None
+    next_refresh = time.monotonic() + cfg["refresh_seconds"]
     try:
         tty.setraw(fd)
         colors = query_colors(fd)
@@ -55,9 +72,14 @@ def ui() -> None:
             log(f"debug ui: effect={cfg['effect']}, terminal reported {len(colors)}/18 colors")
         while True:
             size = tuple(os.get_terminal_size())
-            if size != drawn:  # redraw only on resize: the snapshot never changes
+            if cfg["refresh_seconds"] > 0 and time.monotonic() >= next_refresh:
+                next_refresh = time.monotonic() + cfg["refresh_seconds"]
+                if refresh(layout):
+                    drawn = None
+            if size != drawn:  # redraw on resize, or when a refresh brought new pane text
                 frame = Frame(panes(layout, *size), *size, colors, cfg["effect_settings"])
-                sys.stdout.write("\x1b[2J" + effect.render(frame))
+                # Synchronized output: the terminal shows the cleared and redrawn frame at once.
+                sys.stdout.write("\x1b[?2026h\x1b[2J" + effect.render(frame) + "\x1b[?2026l")
                 sys.stdout.flush()
                 drawn = size
             if select.select([fd], [], [], 0.05)[0]:

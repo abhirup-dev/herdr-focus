@@ -24,6 +24,11 @@ tab_away_seconds = 600
 # faster when you come back; a check costs ~20 ms, mostly `lsappinfo`.
 poll_seconds = 2
 
+# While the cover is up, re-read the other panes this often and redraw the ones
+# that changed, so agents working behind it show their progress. The focused
+# pane stays as it was when the cover opened. 0 never refreshes.
+refresh_seconds = 15
+
 # Longest the cover stays blank while Herdr sizes it to the tab, before it
 # draws anyway.
 resize_timeout_seconds = 3

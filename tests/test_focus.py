@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from herdr_focus import config as config_mod  # noqa: E402
+from herdr_focus import cover  # noqa: E402
 from herdr_focus.cover import should_dismiss  # noqa: E402
 from herdr_focus.effects import EFFECTS, contrast  # noqa: E402
 from herdr_focus.geometry import Frame, panes  # noqa: E402
@@ -121,6 +122,21 @@ class Processes(unittest.TestCase):
         self.assertTrue(Path(triggers._argv(os.getpid())[0]).name.startswith("python"))
         if sys.stdin.isatty():  # a pipe or CI has no controlling terminal
             self.assertEqual(triggers._tty(os.getpid()), os.ttyname(0))
+
+
+class Refresh(unittest.TestCase):
+    def test_other_panes_refresh_focused_keeps_snapshot(self):
+        lay = {"panes": [{"pane_id": "a", "focused": True, "text": "old"}, {"pane_id": "b", "text": "old"}]}
+        reads = []
+        real = cover.call
+        cover.call = lambda method, params: reads.append(params["pane_id"]) or {"read": {"text": "new"}}
+        try:
+            self.assertTrue(cover.refresh(lay))
+            self.assertFalse(cover.refresh(lay))  # nothing new: no redraw
+        finally:
+            cover.call = real
+        self.assertEqual(reads, ["b", "b"])
+        self.assertEqual([p["text"] for p in lay["panes"]], ["old", "new"])
 
 
 class Input(unittest.TestCase):

@@ -13,6 +13,7 @@ DEFAULTS = {
     "app_away_seconds": 600,
     "tab_away_seconds": 600,
     "poll_seconds": 2,
+    "refresh_seconds": 15,
     "resize_timeout_seconds": 3,
     "effect": "contrast",
     "debug": False,
