@@ -1,0 +1,30 @@
+id = "herdr-focus"
+name = "Herdr Focus"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "After a break, cover the tab and show which pane your keys will go to: the focused pane as it is, the rest faded. Any key, click or scroll dismisses."
+platforms = ["macos"]
+
+# Starts the watcher (detached, one per session): idle and away-from-session triggers.
+[[startup]]
+command = ["python3", "focus.py", "startup"]
+
+# Re-entering a tab not seen for tab_away_seconds shows the cover.
+[[events]]
+on = "tab.focused"
+command = ["python3", "focus.py", "tab-focused"]
+
+[[actions]]
+id = "show"
+title = "Focus: show where I'm typing"
+description = "Cover the tab: focused pane as it is, others faded. Any key, click or scroll dismisses."
+contexts = ["pane", "workspace", "global"]
+command = ["python3", "focus.py", "show"]
+
+# Opened by focus.py, never bind it directly: the layout is captured before
+# the overlay exists and travels in FOCUS_SNAPSHOT.
+[[panes]]
+id = "cover"
+title = "Focus"
+placement = "overlay"
+command = ["sh", "-c", "exec python3 \"$HERDR_PLUGIN_ROOT/focus.py\" ui"]

@@ -1,0 +1,56 @@
+# herdr-focus configuration.
+#
+# Lives at $HERDR_PLUGIN_CONFIG_DIR/config.toml; print that directory with
+#   herdr plugin config-dir herdr-focus
+# Every key is optional. The values below are the defaults. Edits apply on
+# the next watcher tick or cover; no restart needed.
+
+# --- When the cover opens (seconds; 0 turns that trigger off) ---------------
+
+# No keyboard or mouse input anywhere on the Mac for this long, while this
+# session's terminal is frontmost.
+idle_seconds = 600
+
+# This session's terminal (Ghostty or iTerm) comes back to the front after
+# another app was in front for this long.
+app_away_seconds = 600
+
+# You switch into a Herdr tab you left this long ago.
+tab_away_seconds = 600
+
+# --- Timing --------------------------------------------------------------------
+
+# How often the watcher checks the frontmost app and idle time. Lower reacts
+# faster when you come back; a check costs ~20 ms, mostly `lsappinfo`.
+poll_seconds = 2
+
+# Longest the cover stays blank while Herdr sizes it to the tab, before it
+# draws anyway.
+resize_timeout_seconds = 3
+
+# --- Look ------------------------------------------------------------------------
+# Any key, click or scroll dismisses the cover, whatever the effect.
+
+# Which effect draws the cover. Each one's settings live under [effects.<name>].
+# Known: contrast.
+effect = "contrast"
+
+# --- Diagnostics -----------------------------------------------------------------
+
+# Log frontmost-app changes and cover timings to the state directory's focus.log.
+debug = false
+
+# --- Effects ---------------------------------------------------------------------
+# Colors: a name (black, red, green, yellow, blue, magenta, cyan, white, or
+# bright-*), a palette index (0-255) or "#RRGGBB". Names and indexes follow the
+# terminal theme; "#RRGGBB" is fixed.
+
+# contrast: the focused pane as it is, with a colored border; every other pane
+# faded toward the terminal background, keeping its own colors.
+[effects.contrast]
+# How far the other panes fade: 0 leaves them as they are, 1 makes them vanish.
+dim_strength = 0.3
+# Border of the pane your keys go to.
+focused_border = "208"
+# Border of every other pane.
+dimmed_border = "bright-black"
