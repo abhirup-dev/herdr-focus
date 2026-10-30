@@ -69,6 +69,7 @@ def ui() -> None:
     sys.stdout.write("\x1b[?1000h\x1b[?1006h")
     drawn = None
     next_refresh = time.monotonic() + cfg["refresh_seconds"]
+    next_nudge = 0.0
     try:
         tty.setraw(fd)
         colors = query_colors(fd)
@@ -80,6 +81,10 @@ def ui() -> None:
                 next_refresh = time.monotonic() + cfg["refresh_seconds"]
                 if refresh(layout):
                     drawn = None
+            if size != want and time.monotonic() >= next_nudge:
+                # Still the wrong size (its tab was left before Herdr laid it out): keep
+                # redrawing, since Herdr resizes on output and the tab may be shown again.
+                next_nudge, drawn = time.monotonic() + 0.25, None
             if size != drawn:  # redraw on resize, or when a refresh brought new pane text
                 frame = Frame(panes(layout, *size), *size, colors, cfg["effect_settings"])
                 # Synchronized output: the terminal shows the cleared and redrawn frame at once.

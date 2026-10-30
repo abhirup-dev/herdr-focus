@@ -36,31 +36,46 @@ _idle.restype = ctypes.c_double
 
 def show(reason: str = "manual") -> None:
     t0 = time.time()
-    close_cover()
-    pane = call("session.snapshot", {})["snapshot"].get("focused_pane_id")
-    if not pane:
-        return
-    # Snapshot before the overlay opens: the overlay is a real split, so it
-    # halves the focused pane and the app inside rewraps its screen.
-    layout = call("pane.layout", {"pane_id": pane})["layout"]
-    layout["pane_gaps"] = herdr_pane_gaps()
-    for p in layout["panes"]:
-        try:
-            p["text"] = call("pane.read", {"pane_id": p["pane_id"], "source": "visible", "format": "ansi"})["read"]["text"]
-        except Exception as e:
-            p["text"] = f"(could not read pane: {e})"
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    snapshot = STATE_DIR / "snapshot.json"
-    snapshot.write_text(json.dumps(layout))
-    call(
-        "plugin.pane.open",
-        {
-            "plugin_id": PLUGIN_ID,
-            "entrypoint": "cover",
-            "focus": True,  # overlays always cover the active pane; no target_pane_id
-            "env": {"FOCUS_SNAPSHOT": str(snapshot), "FOCUS_T0": str(t0)},
-        },
-    )
+    # One at a time: the watcher and the tab hook can fire together, and a second
+    # snapshot taken while the first cover opens would capture that cover.
+    with open(STATE_DIR / "show.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        tab = call("session.snapshot", {})["snapshot"].get("focused_tab_id")
+        cover_tab = STATE_DIR / "cover.tab"
+        if pid_alive(STATE_DIR / "cover.pid") and cover_tab.exists() and cover_tab.read_text() == tab:
+            log(f"cover already up on this tab, skipped ({reason})")
+            return
+        close_cover()
+        pane = call("session.snapshot", {})["snapshot"].get("focused_pane_id")
+        if not pane:
+            return
+        # Snapshot before the overlay opens: the overlay is a real split, so it
+        # halves the focused pane and the app inside rewraps its screen.
+        layout = call("pane.layout", {"pane_id": pane})["layout"]
+        layout["pane_gaps"] = herdr_pane_gaps()
+        for p in layout["panes"]:
+            try:
+                p["text"] = call("pane.read", {"pane_id": p["pane_id"], "source": "visible", "format": "ansi"})["read"]["text"]
+            except Exception as e:
+                p["text"] = f"(could not read pane: {e})"
+        snapshot = STATE_DIR / "snapshot.json"
+        snapshot.write_text(json.dumps(layout))
+        call(
+            "plugin.pane.open",
+            {
+                "plugin_id": PLUGIN_ID,
+                "entrypoint": "cover",
+                "focus": True,  # overlays always cover the active pane; no target_pane_id
+                "env": {"FOCUS_SNAPSHOT": str(snapshot), "FOCUS_T0": str(t0)},
+            },
+        )
+        cover_tab.write_text(tab or "")
+        # Hold the lock until the cover has written its pidfile, so a racing trigger sees it.
+        for _ in range(40):
+            if pid_alive(STATE_DIR / "cover.pid"):
+                break
+            time.sleep(0.025)
     log(f"cover opened ({reason}) over {pane} in {time.time() - t0:.2f}s")
 
 
